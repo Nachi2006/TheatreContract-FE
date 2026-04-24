@@ -1,207 +1,453 @@
+/* ─────────────────────────────────────
+   TheatreOps Portal — app.js
+   SPA Router + API layer
+   ───────────────────────────────────── */
+
 const API_URL = 'https://theatrecontract-be.onrender.com';
 
-// State Management
-const authSection = document.getElementById('auth-section');
-const dashboardSection = document.getElementById('dashboard-section');
-const adminSection = document.getElementById('admin-section');
-const adminNavLink = document.getElementById('admin-nav-link');
+// ══════════════════════════════════════
+//  DOM Refs
+// ══════════════════════════════════════
+const authScreen     = document.getElementById('auth-screen');
+const appShell       = document.getElementById('app-shell');
+const loginForm      = document.getElementById('login-form');
+const loginError     = document.getElementById('login-error');
+const loginBtnText   = document.getElementById('login-btn-text');
+const loginSpinner   = document.getElementById('login-spinner');
+const loginBtn       = document.getElementById('login-btn');
 
-// Forms & Btns
-const loginForm = document.getElementById('login-form');
-const logoutBtnDesktop = document.getElementById('logout-btn-desktop');
-const logoutBtnMobile = document.getElementById('logout-btn-mobile');
-const uploadForm = document.getElementById('upload-form');
-const createUserForm = document.getElementById('create-user-form');
-const refreshUsersBtn = document.getElementById('refresh-users-btn');
+const logoutBtn      = document.getElementById('logout-btn');
+const sidebarAvatar  = document.getElementById('sidebar-avatar');
+const sidebarUsername= document.getElementById('sidebar-username');
+const topbarAvatar   = document.getElementById('topbar-avatar');
+const topbarUsername = document.getElementById('topbar-username');
 
-function checkAuth() {
-    const token = localStorage.getItem('token');
-    const isAdmin = localStorage.getItem('is_admin') === 'true';
+const adminNavItem   = document.getElementById('admin-nav-item');
+const adminInfoCard  = document.getElementById('admin-info-card');
+const pageTitle      = document.getElementById('page-title');
 
-    if (token) {
-        authSection.classList.add('hidden');
-        dashboardSection.classList.remove('hidden');
-        dashboardSection.classList.add('flex');
-        
-        if (isAdmin) {
-            adminSection.classList.remove('hidden');
-            adminNavLink.classList.remove('hidden');
-            fetchUsers();
-        } else {
-            adminSection.classList.add('hidden');
-            adminNavLink.classList.add('hidden');
-        }
-    } else {
-        authSection.classList.remove('hidden');
-        dashboardSection.classList.add('hidden');
-        dashboardSection.classList.remove('flex');
-    }
-    lucide.createIcons(); // Re-render icons for dynamic elements
+const menuBtn        = document.getElementById('menu-btn');
+const sidebar        = document.getElementById('sidebar');
+const overlay        = document.getElementById('sidebar-overlay');
+
+// Process page
+const uploadForm     = document.getElementById('upload-form');
+const excelFile      = document.getElementById('excel-file');
+const dropzone       = document.getElementById('dropzone');
+const dropzoneLabel  = document.getElementById('dropzone-label');
+const filePreview    = document.getElementById('file-preview');
+const filePreviewName= document.getElementById('file-preview-name');
+const removeFileBtn  = document.getElementById('remove-file-btn');
+const processBtn     = document.getElementById('process-btn');
+const processBtnText = document.getElementById('process-btn-text');
+const processSpinner = document.getElementById('process-spinner');
+const uploadStatus   = document.getElementById('upload-status');
+
+// Admin page
+const createUserForm   = document.getElementById('create-user-form');
+const createUserStatus = document.getElementById('create-user-status');
+const refreshUsersBtn  = document.getElementById('refresh-users-btn');
+const usersList        = document.getElementById('users-list');
+
+// ══════════════════════════════════════
+//  Auth Helpers
+// ══════════════════════════════════════
+const getToken   = () => localStorage.getItem('token');
+const getIsAdmin = () => localStorage.getItem('is_admin') === 'true';
+const getUsername= () => localStorage.getItem('username') || '';
+
+function initials(name) {
+    if (!name) return '?';
+    return name.split(/[\s_\-]+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
 }
 
-loginForm.addEventListener('submit', async (e) => {
+// ══════════════════════════════════════
+//  Boot / Auth Check
+// ══════════════════════════════════════
+function boot() {
+    if (getToken()) {
+        showApp();
+    } else {
+        showAuth();
+    }
+}
+
+function showApp() {
+    authScreen.classList.add('hidden');
+    appShell.classList.remove('hidden');
+
+    const username = getUsername();
+    const isAdmin  = getIsAdmin();
+
+    // Set user info in sidebar & topbar
+    const av = initials(username);
+    sidebarAvatar.textContent  = av;
+    topbarAvatar.textContent   = av;
+    sidebarUsername.textContent= username || 'User';
+    topbarUsername.textContent = username || 'User';
+
+    // Admin visibility
+    if (isAdmin) {
+        adminNavItem.classList.remove('hidden');
+        adminInfoCard.style.display = '';
+    } else {
+        adminNavItem.classList.add('hidden');
+        adminInfoCard.style.display = 'none';
+    }
+
+    // Route to current hash (default: dashboard)
+    routeTo(location.hash.replace('#', '') || 'dashboard');
+}
+
+function showAuth() {
+    appShell.classList.add('hidden');
+    authScreen.classList.remove('hidden');
+}
+
+// ══════════════════════════════════════
+//  SPA Router
+// ══════════════════════════════════════
+const PAGE_META = {
+    dashboard: { title: 'Dashboard' },
+    process:   { title: 'Process Data' },
+    admin:     { title: 'User Management', adminOnly: true },
+};
+
+function routeTo(page) {
+    const meta = PAGE_META[page];
+
+    // Fallback if page doesn't exist or is admin-only for non-admin
+    if (!meta || (meta.adminOnly && !getIsAdmin())) {
+        page = 'dashboard';
+    }
+
+    // Update URL hash without push
+    history.replaceState(null, '', `#${page}`);
+
+    // Update page title
+    pageTitle.textContent = PAGE_META[page].title;
+
+    // Switch active page
+    document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+    const target = document.getElementById(`page-${page}`);
+    if (target) target.classList.add('active');
+
+    // Update sidebar active link
+    document.querySelectorAll('.nav-item').forEach(a => {
+        a.classList.toggle('active', a.dataset.page === page);
+    });
+
+    // Side-effects per page
+    if (page === 'admin') fetchUsers();
+
+    // Close mobile sidebar
+    closeSidebar();
+}
+
+// ══════════════════════════════════════
+//  Login
+// ══════════════════════════════════════
+loginForm.addEventListener('submit', async e => {
     e.preventDefault();
-    const usernameEl = document.getElementById('username');
-    const passwordEl = document.getElementById('password');
-    const errorEl = document.getElementById('login-error');
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+
+    setLoginLoading(true);
+    loginError.classList.add('hidden');
 
     const formData = new URLSearchParams();
-    formData.append('username', usernameEl.value);
-    formData.append('password', passwordEl.value);
+    formData.append('username', username);
+    formData.append('password', password);
 
     try {
-        const response = await fetch(`${API_URL}/token`, {
+        const res = await fetch(`${API_URL}/token`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: formData
+            body: formData,
         });
 
-        if (response.ok) {
-            const data = await response.json();
-            localStorage.setItem('token', data.access_token);
+        if (res.ok) {
+            const data = await res.json();
+            localStorage.setItem('token',    data.access_token);
             localStorage.setItem('is_admin', data.is_admin);
-            usernameEl.value = '';
-            passwordEl.value = '';
-            errorEl.classList.add('hidden');
-            checkAuth();
+            localStorage.setItem('username', username);
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+            showApp();
         } else {
-            const err = await response.json();
-            errorEl.textContent = err.detail || 'Authentication failed.';
-            errorEl.classList.remove('hidden');
+            const err = await res.json().catch(() => ({}));
+            showLoginError(err.detail || 'Invalid credentials.');
         }
-    } catch (error) {
-        errorEl.textContent = 'Connection error.';
-        errorEl.classList.remove('hidden');
+    } catch {
+        showLoginError('Connection error. Please try again.');
+    } finally {
+        setLoginLoading(false);
     }
 });
 
-const handleLogout = () => {
+function setLoginLoading(on) {
+    loginBtn.disabled = on;
+    loginBtnText.textContent = on ? 'Signing in…' : 'Sign In';
+    loginSpinner.classList.toggle('hidden', !on);
+}
+
+function showLoginError(msg) {
+    loginError.textContent = msg;
+    loginError.classList.remove('hidden');
+}
+
+// ══════════════════════════════════════
+//  Logout
+// ══════════════════════════════════════
+logoutBtn.addEventListener('click', () => {
     localStorage.removeItem('token');
     localStorage.removeItem('is_admin');
-    checkAuth();
-};
+    localStorage.removeItem('username');
+    showAuth();
+});
 
-logoutBtnDesktop.addEventListener('click', handleLogout);
-logoutBtnMobile.addEventListener('click', handleLogout);
+// ══════════════════════════════════════
+//  Navigation — sidebar links + hash
+// ══════════════════════════════════════
+document.querySelectorAll('[data-page]').forEach(el => {
+    el.addEventListener('click', e => {
+        e.preventDefault();
+        routeTo(el.dataset.page);
+    });
+});
 
-uploadForm.addEventListener('submit', async (e) => {
+window.addEventListener('hashchange', () => {
+    if (getToken()) routeTo(location.hash.replace('#', '') || 'dashboard');
+});
+
+// ══════════════════════════════════════
+//  Mobile Sidebar
+// ══════════════════════════════════════
+menuBtn.addEventListener('click', () => {
+    sidebar.classList.add('open');
+    overlay.classList.add('active');
+});
+
+function closeSidebar() {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('active');
+}
+
+overlay.addEventListener('click', closeSidebar);
+
+// ══════════════════════════════════════
+//  Process Data — Dropzone
+// ══════════════════════════════════════
+excelFile.addEventListener('change', () => {
+    const file = excelFile.files[0];
+    if (file) showFilePreview(file);
+});
+
+removeFileBtn.addEventListener('click', () => {
+    excelFile.value = '';
+    filePreview.classList.add('hidden');
+    dropzoneLabel.style.display = '';
+    processBtn.disabled = true;
+    clearUploadStatus();
+});
+
+function showFilePreview(file) {
+    filePreviewName.textContent = file.name;
+    filePreview.classList.remove('hidden');
+    dropzoneLabel.style.display = 'none';
+    processBtn.disabled = false;
+    clearUploadStatus();
+}
+
+// Drag & drop
+dropzone.addEventListener('dragover', e => {
     e.preventDefault();
-    const fileInput = document.getElementById('excel-file');
-    const statusEl = document.getElementById('upload-status');
-    const token = localStorage.getItem('token');
+    dropzone.classList.add('drag-over');
+});
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && /\.(xlsx|xls)$/i.test(file.name)) {
+        // Assign to input
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        excelFile.files = dt.files;
+        showFilePreview(file);
+    } else {
+        setUploadStatus('error', 'Please drop a valid Excel file (.xlsx or .xls).');
+    }
+});
 
-    if (!fileInput.files.length) return;
+// ══════════════════════════════════════
+//  Process & Download ZIP
+// ══════════════════════════════════════
+uploadForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!excelFile.files.length) return;
 
+    const token = getToken();
     const formData = new FormData();
-    formData.append('file', fileInput.files[0]);
+    formData.append('file', excelFile.files[0]);
 
-    statusEl.textContent = '⚙️ Processing data...';
-    statusEl.className = 'mt-4 p-3 rounded-lg text-sm bg-blue-50 text-blue-700 block animate-pulse';
+    setProcessLoading(true);
+    setUploadStatus('info', '⚙️ Processing your file…');
 
     try {
-        const response = await fetch(`${API_URL}/process-zip`, {
+        const res = await fetch(`${API_URL}/process-zip`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` },
-            body: formData
+            body: formData,
         });
 
-        if (response.ok) {
-            const blob = await response.blob();
-            const downloadUrl = window.URL.createObjectURL(blob);
+        if (res.ok) {
+            const blob = await res.blob();
+            const url  = URL.createObjectURL(blob);
             const link = document.createElement('a');
-            link.href = downloadUrl;
+            link.href  = url;
             link.download = 'theatre_package.zip';
             document.body.appendChild(link);
             link.click();
             link.remove();
-            
-            statusEl.textContent = '✅ Success! Your download has started.';
-            statusEl.className = 'mt-4 p-3 rounded-lg text-sm bg-green-50 text-green-700 block';
-            fileInput.value = ''; 
+            URL.revokeObjectURL(url);
+
+            setUploadStatus('success', '✅ Done! Your download has started.');
+            // Reset file input
+            excelFile.value = '';
+            filePreview.classList.add('hidden');
+            dropzoneLabel.style.display = '';
+            processBtn.disabled = true;
         } else {
-            const err = await response.json();
-            statusEl.textContent = `❌ Error: ${err.detail || 'Failed to process'}`;
-            statusEl.className = 'mt-4 p-3 rounded-lg text-sm bg-red-50 text-red-700 block';
+            const err = await res.json().catch(() => ({}));
+            setUploadStatus('error', `❌ ${err.detail || 'Processing failed. Please try again.'}`);
         }
-    } catch (error) {
-        statusEl.textContent = '❌ Network error during upload.';
-        statusEl.className = 'mt-4 p-3 rounded-lg text-sm bg-red-50 text-red-700 block';
+    } catch {
+        setUploadStatus('error', '❌ Network error. Check your connection and try again.');
+    } finally {
+        setProcessLoading(false);
     }
 });
 
+function setProcessLoading(on) {
+    processBtn.disabled = on;
+    processBtnText.textContent = on ? 'Processing…' : 'Process & Download ZIP';
+    processSpinner.classList.toggle('hidden', !on);
+    processBtn.querySelector('.btn-icon').classList.toggle('hidden', on);
+}
+
+function setUploadStatus(type, msg) {
+    uploadStatus.textContent = msg;
+    uploadStatus.className = `status-banner ${type}`;
+    uploadStatus.classList.remove('hidden');
+}
+
+function clearUploadStatus() {
+    uploadStatus.classList.add('hidden');
+    uploadStatus.className = 'status-banner hidden';
+}
+
+// ══════════════════════════════════════
+//  User Management (Admin)
+// ══════════════════════════════════════
 async function fetchUsers() {
-    const token = localStorage.getItem('token');
-    const listEl = document.getElementById('users-list');
-    
+    const token = getToken();
+    usersList.innerHTML = `<tr class="empty-row"><td colspan="2">Loading…</td></tr>`;
+
     try {
-        const response = await fetch(`${API_URL}/users`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+        const res = await fetch(`${API_URL}/users`, {
+            headers: { 'Authorization': `Bearer ${token}` },
         });
 
-        if (response.ok) {
-            const users = await response.json();
-            listEl.innerHTML = '';
-            users.forEach(u => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="py-4">
-                        <div class="font-medium text-slate-800">${u.username}</div>
+        if (res.ok) {
+            const users = await res.json();
+            if (!users.length) {
+                usersList.innerHTML = `<tr class="empty-row"><td colspan="2">No users found.</td></tr>`;
+                return;
+            }
+            usersList.innerHTML = users.map(u => `
+                <tr>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:0.625rem">
+                            <div class="user-avatar" style="width:28px;height:28px;font-size:0.7rem">${initials(u.username)}</div>
+                            <span style="font-weight:500">${escHtml(u.username)}</span>
+                        </div>
                     </td>
-                    <td class="py-4 text-right">
-                        <span class="text-[10px] font-bold px-2 py-1 rounded-full border ${u.is_admin ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-100 text-slate-500 border-slate-200'}">
-                            ${u.is_admin ? 'ADMIN' : 'STAFF'}
-                        </span>
+                    <td>
+                        <span class="role-pill ${u.is_admin ? 'admin' : 'staff'}">${u.is_admin ? 'Admin' : 'Staff'}</span>
                     </td>
-                `;
-                listEl.appendChild(tr);
-            });
+                </tr>
+            `).join('');
+        } else {
+            usersList.innerHTML = `<tr class="empty-row"><td colspan="2">Failed to load users.</td></tr>`;
         }
-    } catch (error) {
-        console.error('User fetch failed');
+    } catch {
+        usersList.innerHTML = `<tr class="empty-row"><td colspan="2">Connection error.</td></tr>`;
     }
 }
 
 refreshUsersBtn.addEventListener('click', fetchUsers);
 
-createUserForm.addEventListener('submit', async (e) => {
+createUserForm.addEventListener('submit', async e => {
     e.preventDefault();
     const usernameEl = document.getElementById('new-username');
     const passwordEl = document.getElementById('new-password');
-    const isAdminEl = document.getElementById('new-is-admin');
-    const statusEl = document.getElementById('create-user-status');
-    const token = localStorage.getItem('token');
+    const roleEl     = createUserForm.querySelector('input[name="role"]:checked');
+    const token      = getToken();
+    const isAdmin    = roleEl?.value === 'admin';
+
+    hideCreateUserStatus();
 
     try {
-        const response = await fetch(`${API_URL}/users`, {
+        const res = await fetch(`${API_URL}/users`, {
             method: 'POST',
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
+                'Authorization': `Bearer ${token}`,
             },
             body: JSON.stringify({
-                username: usernameEl.value,
+                username: usernameEl.value.trim(),
                 password: passwordEl.value,
-                is_admin: isAdminEl.checked
-            })
+                is_admin: isAdmin,
+            }),
         });
 
-        if (response.ok) {
-            statusEl.textContent = 'User created successfully';
-            statusEl.className = 'text-xs text-green-600 block';
+        if (res.ok) {
+            showCreateUserStatus('success', `User "${usernameEl.value.trim()}" created successfully.`);
             usernameEl.value = '';
             passwordEl.value = '';
-            isAdminEl.checked = false;
-            fetchUsers(); 
+            createUserForm.querySelector('input[value="staff"]').checked = true;
+            fetchUsers();
         } else {
-            const err = await response.json();
-            statusEl.textContent = err.detail || 'Creation failed';
-            statusEl.className = 'text-xs text-red-600 block';
+            const err = await res.json().catch(() => ({}));
+            showCreateUserStatus('error', err.detail || 'Failed to create user.');
         }
-    } catch (error) {
-        statusEl.textContent = 'Server error';
-        statusEl.className = 'text-xs text-red-600 block';
+    } catch {
+        showCreateUserStatus('error', 'Server error. Please try again.');
     }
 });
 
-// Initial boot
-checkAuth();
+function showCreateUserStatus(type, msg) {
+    createUserStatus.textContent = msg;
+    createUserStatus.className = `status-inline ${type}`;
+    createUserStatus.classList.remove('hidden');
+}
+function hideCreateUserStatus() {
+    createUserStatus.classList.add('hidden');
+}
+
+// ══════════════════════════════════════
+//  Utils
+// ══════════════════════════════════════
+function escHtml(str) {
+    return String(str)
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;');
+}
+
+// ══════════════════════════════════════
+//  Init
+// ══════════════════════════════════════
+boot();
