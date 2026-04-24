@@ -1,4 +1,4 @@
-const API_URL = 'https://theatrecontract-be.onrender.com/';
+const API_URL = 'https://theatrecontract-be.onrender.com';
 
 const authSection = document.getElementById('auth-section');
 const dashboardSection = document.getElementById('dashboard-section');
