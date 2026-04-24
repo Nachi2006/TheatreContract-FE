@@ -448,6 +448,20 @@ function escHtml(str) {
 }
 
 // ══════════════════════════════════════
+//  Keep-Alive (prevents Render spin-down)
+// ══════════════════════════════════════
+const PING_INTERVAL = 30_000; // 30 seconds
+
+function keepAlive() {
+    fetch(`${API_URL}/ping`)
+        .then(() => console.log(`[keepAlive] ping ok — ${new Date().toISOString()}`))
+        .catch(err => console.warn(`[keepAlive] ping failed — ${err.message}`));
+}
+
+setInterval(keepAlive, PING_INTERVAL);
+keepAlive(); // fire immediately on load too
+
+// ══════════════════════════════════════
 //  Init
 // ══════════════════════════════════════
 boot();

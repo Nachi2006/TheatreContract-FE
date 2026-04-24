@@ -723,7 +723,7 @@ input, select, textarea { font-family: inherit; }
 
 /* ─────────────── UTILITIES ─────────────── */
 .hidden   { display: none !important; }
-.hidden-mobile { /* visible by default */ }
+
 
 /* ─────────────── RESPONSIVE ─────────────── */
 @media (max-width: 768px) {
