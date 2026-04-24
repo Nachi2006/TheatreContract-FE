@@ -1,10 +1,15 @@
 const API_URL = 'https://theatrecontract-be.onrender.com';
 
+// State Management
 const authSection = document.getElementById('auth-section');
 const dashboardSection = document.getElementById('dashboard-section');
 const adminSection = document.getElementById('admin-section');
+const adminNavLink = document.getElementById('admin-nav-link');
+
+// Forms & Btns
 const loginForm = document.getElementById('login-form');
-const logoutBtn = document.getElementById('logout-btn');
+const logoutBtnDesktop = document.getElementById('logout-btn-desktop');
+const logoutBtnMobile = document.getElementById('logout-btn-mobile');
 const uploadForm = document.getElementById('upload-form');
 const createUserForm = document.getElementById('create-user-form');
 const refreshUsersBtn = document.getElementById('refresh-users-btn');
@@ -16,16 +21,22 @@ function checkAuth() {
     if (token) {
         authSection.classList.add('hidden');
         dashboardSection.classList.remove('hidden');
+        dashboardSection.classList.add('flex');
+        
         if (isAdmin) {
             adminSection.classList.remove('hidden');
+            adminNavLink.classList.remove('hidden');
             fetchUsers();
         } else {
             adminSection.classList.add('hidden');
+            adminNavLink.classList.add('hidden');
         }
     } else {
         authSection.classList.remove('hidden');
         dashboardSection.classList.add('hidden');
+        dashboardSection.classList.remove('flex');
     }
+    lucide.createIcons(); // Re-render icons for dynamic elements
 }
 
 loginForm.addEventListener('submit', async (e) => {
@@ -57,20 +68,21 @@ loginForm.addEventListener('submit', async (e) => {
             const err = await response.json();
             errorEl.textContent = err.detail || 'Authentication failed.';
             errorEl.classList.remove('hidden');
-            errorEl.classList.add('block');
         }
     } catch (error) {
-        errorEl.textContent = 'Unable to connect to the server.';
+        errorEl.textContent = 'Connection error.';
         errorEl.classList.remove('hidden');
-        errorEl.classList.add('block');
     }
 });
 
-logoutBtn.addEventListener('click', () => {
+const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('is_admin');
     checkAuth();
-});
+};
+
+logoutBtnDesktop.addEventListener('click', handleLogout);
+logoutBtnMobile.addEventListener('click', handleLogout);
 
 uploadForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -83,8 +95,8 @@ uploadForm.addEventListener('submit', async (e) => {
     const formData = new FormData();
     formData.append('file', fileInput.files[0]);
 
-    statusEl.textContent = 'Processing data...';
-    statusEl.className = 'text-sm mt-4 text-blue-600 block';
+    statusEl.textContent = '⚙️ Processing data...';
+    statusEl.className = 'mt-4 p-3 rounded-lg text-sm bg-blue-50 text-blue-700 block animate-pulse';
 
     try {
         const response = await fetch(`${API_URL}/process-zip`, {
@@ -98,22 +110,22 @@ uploadForm.addEventListener('submit', async (e) => {
             const downloadUrl = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = downloadUrl;
-            link.download = 'all_theatres.zip';
+            link.download = 'theatre_package.zip';
             document.body.appendChild(link);
             link.click();
             link.remove();
             
-            statusEl.textContent = 'Processing complete. File downloaded.';
-            statusEl.className = 'text-sm mt-4 text-green-600 block';
+            statusEl.textContent = '✅ Success! Your download has started.';
+            statusEl.className = 'mt-4 p-3 rounded-lg text-sm bg-green-50 text-green-700 block';
             fileInput.value = ''; 
         } else {
             const err = await response.json();
-            statusEl.textContent = err.detail || 'Failed to process file.';
-            statusEl.className = 'text-sm mt-4 text-red-600 block';
+            statusEl.textContent = `❌ Error: ${err.detail || 'Failed to process'}`;
+            statusEl.className = 'mt-4 p-3 rounded-lg text-sm bg-red-50 text-red-700 block';
         }
     } catch (error) {
-        statusEl.textContent = 'Upload interrupted due to network error.';
-        statusEl.className = 'text-sm mt-4 text-red-600 block';
+        statusEl.textContent = '❌ Network error during upload.';
+        statusEl.className = 'mt-4 p-3 rounded-lg text-sm bg-red-50 text-red-700 block';
     }
 });
 
@@ -130,19 +142,22 @@ async function fetchUsers() {
             const users = await response.json();
             listEl.innerHTML = '';
             users.forEach(u => {
-                const li = document.createElement('li');
-                li.className = 'p-4 flex justify-between items-center bg-white hover:bg-gray-50 transition';
-                li.innerHTML = `
-                    <span class="font-medium text-gray-800">${u.username}</span>
-                    <span class="text-xs px-2 py-1 rounded-full border ${u.is_admin ? 'bg-gray-900 text-white border-gray-900' : 'bg-gray-100 text-gray-600 border-gray-200'}">
-                        ${u.is_admin ? 'Administrator' : 'Standard User'}
-                    </span>
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="py-4">
+                        <div class="font-medium text-slate-800">${u.username}</div>
+                    </td>
+                    <td class="py-4 text-right">
+                        <span class="text-[10px] font-bold px-2 py-1 rounded-full border ${u.is_admin ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-100 text-slate-500 border-slate-200'}">
+                            ${u.is_admin ? 'ADMIN' : 'STAFF'}
+                        </span>
+                    </td>
                 `;
-                listEl.appendChild(li);
+                listEl.appendChild(tr);
             });
         }
     } catch (error) {
-        console.error('Data retrieval error.');
+        console.error('User fetch failed');
     }
 }
 
@@ -171,21 +186,22 @@ createUserForm.addEventListener('submit', async (e) => {
         });
 
         if (response.ok) {
-            statusEl.textContent = 'User successfully provisioned.';
-            statusEl.className = 'text-sm mt-3 text-green-600 block';
+            statusEl.textContent = 'User created successfully';
+            statusEl.className = 'text-xs text-green-600 block';
             usernameEl.value = '';
             passwordEl.value = '';
             isAdminEl.checked = false;
             fetchUsers(); 
         } else {
             const err = await response.json();
-            statusEl.textContent = err.detail || 'User provisioning failed.';
-            statusEl.className = 'text-sm mt-3 text-red-600 block';
+            statusEl.textContent = err.detail || 'Creation failed';
+            statusEl.className = 'text-xs text-red-600 block';
         }
     } catch (error) {
-        statusEl.textContent = 'Network communication error.';
-        statusEl.className = 'text-sm mt-3 text-red-600 block';
+        statusEl.textContent = 'Server error';
+        statusEl.className = 'text-xs text-red-600 block';
     }
 });
 
+// Initial boot
 checkAuth();
