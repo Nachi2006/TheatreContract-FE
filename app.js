@@ -276,7 +276,8 @@ async function extractTheatres(file) {
             btnExcel.disabled = false;
             btnZip.disabled = false;
         } else {
-            setUploadStatus('error', 'Failed to extract data from file.');
+            const err = await res.json().catch(() => ({}));
+            setUploadStatus('error', err.detail || 'Failed to extract data from file.');
         }
     } catch {
         setUploadStatus('error', 'Network error. Could not connect to the server.');
