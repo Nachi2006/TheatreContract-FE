@@ -752,3 +752,70 @@ input, select, textarea { font-family: inherit; }
     .auth-card { padding: 2rem 1.5rem; }
     .card-grid { grid-template-columns: 1fr; }
 }
+
+
+/* ─────────────── PROCESS DATA SPECIFICS ─────────────── */
+.config-section {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    animation: fadeUp 0.3s ease;
+}
+
+.theatre-list {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.theatre-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    transition: background var(--transition);
+}
+
+.theatre-checkbox:hover {
+    background: var(--bg);
+}
+
+.theatre-checkbox input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.upload-actions {
+    margin-top: 1.5rem;
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.upload-actions .btn {
+    flex: 1;
+    min-width: 220px;
+}
+
+.btn-secondary {
+    background: var(--surface);
+    color: var(--text-primary);
+    border: 1.5px solid var(--border);
+}
+
+.btn-secondary:not(:disabled):hover {
+    background: var(--bg);
+    border-color: var(--text-muted);
+}

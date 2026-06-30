@@ -38,10 +38,16 @@ const dropzoneLabel  = document.getElementById('dropzone-label');
 const filePreview    = document.getElementById('file-preview');
 const filePreviewName= document.getElementById('file-preview-name');
 const removeFileBtn  = document.getElementById('remove-file-btn');
-const processBtn     = document.getElementById('process-btn');
-const processBtnText = document.getElementById('process-btn-text');
-const processSpinner = document.getElementById('process-spinner');
 const uploadStatus   = document.getElementById('upload-status');
+
+// New Process page elements
+const configSection  = document.getElementById('config-section');
+const theatreList    = document.getElementById('theatre-list');
+const screenColInput = document.getElementById('screen-col-name');
+const btnExcel       = document.getElementById('btn-custom-excel');
+const btnZip         = document.getElementById('btn-all-zip');
+const excelBtnText   = document.getElementById('excel-btn-text');
+const zipBtnText     = document.getElementById('zip-btn-text');
 
 // Admin page
 const createUserForm   = document.getElementById('create-user-form');
@@ -235,28 +241,35 @@ function closeSidebar() {
 
 overlay.addEventListener('click', closeSidebar);
 
+
 // ══════════════════════════════════════
-//  Process Data — Dropzone
+//  Process Data — Variables & Dropzone
 // ══════════════════════════════════════
+let currentFile = null;
+
 excelFile.addEventListener('change', () => {
     const file = excelFile.files[0];
-    if (file) showFilePreview(file);
+    if (file) handleFileUpload(file);
 });
 
-removeFileBtn.addEventListener('click', () => {
+removeFileBtn.addEventListener('click', resetUploader);
+
+function resetUploader() {
     excelFile.value = '';
+    currentFile = null;
     filePreview.classList.add('hidden');
     dropzoneLabel.style.display = '';
-    processBtn.disabled = true;
+    configSection.classList.add('hidden');
     clearUploadStatus();
-});
+}
 
-function showFilePreview(file) {
+function handleFileUpload(file) {
+    currentFile = file;
     filePreviewName.textContent = file.name;
     filePreview.classList.remove('hidden');
     dropzoneLabel.style.display = 'none';
-    processBtn.disabled = false;
     clearUploadStatus();
+    extractTheatres(file);
 }
 
 // Drag & drop
@@ -270,70 +283,166 @@ dropzone.addEventListener('drop', e => {
     dropzone.classList.remove('drag-over');
     const file = e.dataTransfer.files[0];
     if (file && /\.(xlsx|xls)$/i.test(file.name)) {
-        // Assign to input
         const dt = new DataTransfer();
         dt.items.add(file);
         excelFile.files = dt.files;
-        showFilePreview(file);
+        handleFileUpload(file);
     } else {
         setUploadStatus('error', 'Please drop a valid Excel file (.xlsx or .xls).');
     }
 });
 
 // ══════════════════════════════════════
-//  Process & Download ZIP
+//  API Integrations for Processing
 // ══════════════════════════════════════
-uploadForm.addEventListener('submit', async e => {
-    e.preventDefault();
-    if (!excelFile.files.length) return;
 
+// 1. Extract Theatres
+async function extractTheatres(file) {
     const token = getToken();
     const formData = new FormData();
-    formData.append('file', excelFile.files[0]);
+    formData.append('file', file);
 
-    setProcessLoading(true);
-    setUploadStatus('info', '⚙️ Processing your file…');
+    configSection.classList.remove('hidden');
+    theatreList.innerHTML = `<p style="color: var(--text-muted); font-size: 0.875rem; padding: 0.5rem;">Loading theatres...</p>`;
+    btnExcel.disabled = true;
+    btnZip.disabled = true;
 
     try {
-        const res = await fetch(`${API_URL}/process-zip`, {
+        const res = await fetch(`${API_URL}/extract-theatres`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` },
             body: formData,
         });
 
         if (res.ok) {
-            const blob = await res.blob();
-            const url  = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href  = url;
-            link.download = 'theatre_package.zip';
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            URL.revokeObjectURL(url);
-
-            setUploadStatus('success', '✅ Done! Your download has started.');
-            // Reset file input
-            excelFile.value = '';
-            filePreview.classList.add('hidden');
-            dropzoneLabel.style.display = '';
-            processBtn.disabled = true;
+            const data = await res.json();
+            populateTheatreList(data.theatres);
+            btnExcel.disabled = false;
+            btnZip.disabled = false;
         } else {
-            const err = await res.json().catch(() => ({}));
-            setUploadStatus('error', `❌ ${err.detail || 'Processing failed. Please try again.'}`);
+            setUploadStatus('error', 'Failed to extract theatres from file.');
         }
     } catch {
-        setUploadStatus('error', '❌ Network error. Check your connection and try again.');
+        setUploadStatus('error', 'Network error. Could not connect to the server.');
+    }
+}
+
+function populateTheatreList(theatres) {
+    if (!theatres || theatres.length === 0) {
+        theatreList.innerHTML = `<p style="color: var(--error-fg); font-size: 0.875rem; padding: 0.5rem;">No theatres found in this file.</p>`;
+        return;
+    }
+
+    theatreList.innerHTML = theatres.map(t => `
+        <label class="theatre-checkbox">
+            <input type="checkbox" value="${escHtml(t)}">
+            <span>${escHtml(t)}</span>
+        </label>
+    `).join('');
+}
+
+// Helper to trigger file download from response blob
+async function triggerDownload(res, defaultFilename) {
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    // Attempt to extract filename from headers if possible
+    let filename = defaultFilename;
+    const disposition = res.headers.get('Content-Disposition');
+    if (disposition && disposition.indexOf('filename=') !== -1) {
+        const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(disposition);
+        if (matches != null && matches[1]) filename = matches[1].replace(/['"]/g, '');
+    }
+
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+
+// 2. Download Selected (Excel)
+btnExcel.addEventListener('click', async () => {
+    if (!currentFile) return;
+
+    const selectedCheckboxes = Array.from(theatreList.querySelectorAll('input:checked')).map(cb => cb.value);
+    if (selectedCheckboxes.length === 0) {
+        setUploadStatus('error', 'Please select at least one theatre for custom Excel.');
+        return;
+    }
+
+    const token = getToken();
+    const formData = new FormData();
+    formData.append('file', currentFile);
+    formData.append('selected_theatres', JSON.stringify(selectedCheckboxes));
+    formData.append('screen_column_name', screenColInput.value.trim() || 'Screen Name');
+
+    setLoadingState(btnExcel, excelBtnText, 'Processing...', true);
+    setUploadStatus('info', '⚙️ Generating custom Excel file...');
+
+    try {
+        const res = await fetch(`${API_URL}/generate-custom-excel`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData,
+        });
+
+        if (res.ok) {
+            await triggerDownload(res, 'selected_theatres_summary.xlsx');
+            setUploadStatus('success', '✅ Excel downloaded successfully!');
+        } else {
+            const err = await res.json().catch(() => ({}));
+            setUploadStatus('error', `❌ ${err.detail || 'Processing failed.'}`);
+        }
+    } catch {
+        setUploadStatus('error', '❌ Network error. Check your connection.');
     } finally {
-        setProcessLoading(false);
+        setLoadingState(btnExcel, excelBtnText, 'Download Selected (Excel)', false);
     }
 });
 
-function setProcessLoading(on) {
-    processBtn.disabled = on;
-    processBtnText.textContent = on ? 'Processing…' : 'Process & Download ZIP';
-    processSpinner.classList.toggle('hidden', !on);
-    processBtn.querySelector('.btn-icon').classList.toggle('hidden', on);
+// 3. Download All (ZIP)
+btnZip.addEventListener('click', async () => {
+    if (!currentFile) return;
+
+    const token = getToken();
+    const formData = new FormData();
+    formData.append('file', currentFile);
+    formData.append('screen_column_name', screenColInput.value.trim() || 'Screen Name');
+
+    setLoadingState(btnZip, zipBtnText, 'Zipping...', true);
+    setUploadStatus('info', '⚙️ Processing all theatres into a ZIP archive...');
+
+    try {
+        const res = await fetch(`${API_URL}/generate-all-zip`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData,
+        });
+
+        if (res.ok) {
+            await triggerDownload(res, 'all_theatres_summary.zip');
+            setUploadStatus('success', '✅ ZIP archive downloaded successfully!');
+        } else {
+            const err = await res.json().catch(() => ({}));
+            setUploadStatus('error', `❌ ${err.detail || 'Processing failed.'}`);
+        }
+    } catch {
+        setUploadStatus('error', '❌ Network error. Check your connection.');
+    } finally {
+        setLoadingState(btnZip, zipBtnText, 'Download All (ZIP)', false);
+    }
+});
+
+function setLoadingState(btnEl, textEl, loadText, isLoading) {
+    btnEl.disabled = isLoading;
+    textEl.textContent = loadText;
+    
+    // disable the other button to prevent double requests
+    if (btnEl === btnExcel) btnZip.disabled = isLoading;
+    if (btnEl === btnZip) btnExcel.disabled = isLoading;
 }
 
 function setUploadStatus(type, msg) {
