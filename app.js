@@ -1,13 +1,5 @@
-/* ─────────────────────────────────────
-   TheatreOps Portal — app.js
-   SPA Router + API layer
-   ───────────────────────────────────── */
-
 const API_URL = 'https://theatrecontract-be.onrender.com';
 
-// ══════════════════════════════════════
-//  DOM Refs
-// ══════════════════════════════════════
 const authScreen     = document.getElementById('auth-screen');
 const appShell       = document.getElementById('app-shell');
 const loginForm      = document.getElementById('login-form');
@@ -30,7 +22,6 @@ const menuBtn        = document.getElementById('menu-btn');
 const sidebar        = document.getElementById('sidebar');
 const overlay        = document.getElementById('sidebar-overlay');
 
-// Process page elements
 const uploadForm       = document.getElementById('upload-form');
 const excelFile        = document.getElementById('excel-file');
 const dropzone         = document.getElementById('dropzone');
@@ -49,15 +40,11 @@ const btnZip           = document.getElementById('btn-all-zip');
 const excelBtnText     = document.getElementById('excel-btn-text');
 const zipBtnText       = document.getElementById('zip-btn-text');
 
-// Admin page elements
 const createUserForm   = document.getElementById('create-user-form');
 const createUserStatus = document.getElementById('create-user-status');
 const refreshUsersBtn  = document.getElementById('refresh-users-btn');
 const usersList        = document.getElementById('users-list');
 
-// ══════════════════════════════════════
-//  Auth Helpers
-// ══════════════════════════════════════
 const getToken   = () => localStorage.getItem('token');
 const getIsAdmin = () => localStorage.getItem('is_admin') === 'true';
 const getUsername= () => localStorage.getItem('username') || '';
@@ -67,9 +54,6 @@ function initials(name) {
     return name.split(/[\s_\-]+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
 }
 
-// ══════════════════════════════════════
-//  Boot / Auth Check
-// ══════════════════════════════════════
 function boot() {
     if (getToken()) {
         showApp();
@@ -107,9 +91,6 @@ function showAuth() {
     authScreen.classList.remove('hidden');
 }
 
-// ══════════════════════════════════════
-//  SPA Router
-// ══════════════════════════════════════
 const PAGE_META = {
     dashboard: { title: 'Dashboard' },
     process:   { title: 'Process Data' },
@@ -138,9 +119,6 @@ function routeTo(page) {
     closeSidebar();
 }
 
-// ══════════════════════════════════════
-//  Login
-// ══════════════════════════════════════
 loginForm.addEventListener('submit', async e => {
     e.preventDefault();
     const username = document.getElementById('username').value.trim();
@@ -190,9 +168,6 @@ function showLoginError(msg) {
     loginError.classList.remove('hidden');
 }
 
-// ══════════════════════════════════════
-//  Logout
-// ══════════════════════════════════════
 logoutBtn.addEventListener('click', () => {
     localStorage.removeItem('token');
     localStorage.removeItem('is_admin');
@@ -200,9 +175,6 @@ logoutBtn.addEventListener('click', () => {
     showAuth();
 });
 
-// ══════════════════════════════════════
-//  Navigation — sidebar links + hash
-// ══════════════════════════════════════
 document.querySelectorAll('[data-page]').forEach(el => {
     el.addEventListener('click', e => {
         e.preventDefault();
@@ -214,9 +186,6 @@ window.addEventListener('hashchange', () => {
     if (getToken()) routeTo(location.hash.replace('#', '') || 'dashboard');
 });
 
-// ══════════════════════════════════════
-//  Mobile Sidebar
-// ══════════════════════════════════════
 menuBtn.addEventListener('click', () => {
     sidebar.classList.add('open');
     overlay.classList.add('active');
@@ -229,10 +198,6 @@ function closeSidebar() {
 
 overlay.addEventListener('click', closeSidebar);
 
-
-// ══════════════════════════════════════
-//  Process Data — Variables & Dropzone
-// ══════════════════════════════════════
 let currentFile = null;
 
 excelFile.addEventListener('change', () => {
@@ -249,7 +214,6 @@ function resetUploader() {
     dropzoneLabel.style.display = '';
     configSection.classList.add('hidden');
     
-    // Reset search & toggles
     theatreSearch.value = '';
     theatreSearch.classList.add('hidden');
     thirdPartyToggle.checked = false;
@@ -266,7 +230,6 @@ function handleFileUpload(file) {
     extractTheatres(file);
 }
 
-// Drag & drop
 dropzone.addEventListener('dragover', e => {
     e.preventDefault();
     dropzone.classList.add('drag-over');
@@ -276,21 +239,17 @@ dropzone.addEventListener('drop', e => {
     e.preventDefault();
     dropzone.classList.remove('drag-over');
     const file = e.dataTransfer.files[0];
-    if (file && /\.(xlsx|xls)$/i.test(file.name)) {
+    
+    if (file && /\.(xlsx|xls|xlsb)$/i.test(file.name)) {
         const dt = new DataTransfer();
         dt.items.add(file);
         excelFile.files = dt.files;
         handleFileUpload(file);
     } else {
-        setUploadStatus('error', 'Please drop a valid Excel file (.xlsx or .xls).');
+        setUploadStatus('error', 'Please drop a valid Excel file (.xlsx, .xls, or .xlsb).');
     }
 });
 
-// ══════════════════════════════════════
-//  API Integrations for Processing
-// ══════════════════════════════════════
-
-// 1. Extract Theatres
 async function extractTheatres(file) {
     const token = getToken();
     const formData = new FormData();
@@ -339,9 +298,6 @@ function populateTheatreList(theatres) {
     `).join('');
 }
 
-// ══════════════════════════════════════
-//  Search Filter Logic
-// ══════════════════════════════════════
 theatreSearch.addEventListener('input', (e) => {
     const query = e.target.value.toLowerCase();
     const labels = theatreList.querySelectorAll('.theatre-checkbox');
@@ -356,7 +312,6 @@ theatreSearch.addEventListener('input', (e) => {
     });
 });
 
-// Helper to trigger file download from response blob
 async function triggerDownload(res, defaultFilename) {
     const blob = await res.blob();
     const url  = URL.createObjectURL(blob);
@@ -377,7 +332,6 @@ async function triggerDownload(res, defaultFilename) {
     URL.revokeObjectURL(url);
 }
 
-// 2. Download Selected (Excel)
 btnExcel.addEventListener('click', async () => {
     if (!currentFile) return;
 
@@ -417,7 +371,6 @@ btnExcel.addEventListener('click', async () => {
     }
 });
 
-// 3. Download All (ZIP)
 btnZip.addEventListener('click', async () => {
     if (!currentFile) return;
 
@@ -469,9 +422,6 @@ function clearUploadStatus() {
     uploadStatus.className = 'status-banner hidden';
 }
 
-// ══════════════════════════════════════
-//  User Management (Admin)
-// ══════════════════════════════════════
 async function fetchUsers() {
     const token = getToken();
     usersList.innerHTML = `<tr class="empty-row"><td colspan="2">Loading…</td></tr>`;
@@ -558,9 +508,6 @@ function hideCreateUserStatus() {
     createUserStatus.classList.add('hidden');
 }
 
-// ══════════════════════════════════════
-//  Utils
-// ══════════════════════════════════════
 function escHtml(str) {
     return String(str)
         .replace(/&/g,'&amp;')
@@ -569,9 +516,6 @@ function escHtml(str) {
         .replace(/"/g,'&quot;');
 }
 
-// ══════════════════════════════════════
-//  Keep-Alive (prevents Render spin-down)
-// ══════════════════════════════════════
 const PING_INTERVAL = 30_000; 
 
 function keepAlive() {
