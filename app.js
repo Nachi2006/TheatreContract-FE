@@ -31,22 +31,23 @@ const sidebar        = document.getElementById('sidebar');
 const overlay        = document.getElementById('sidebar-overlay');
 
 // Process page elements
-const uploadForm     = document.getElementById('upload-form');
-const excelFile      = document.getElementById('excel-file');
-const dropzone       = document.getElementById('dropzone');
-const dropzoneLabel  = document.getElementById('dropzone-label');
-const filePreview    = document.getElementById('file-preview');
-const filePreviewName= document.getElementById('file-preview-name');
-const removeFileBtn  = document.getElementById('remove-file-btn');
-const uploadStatus   = document.getElementById('upload-status');
+const uploadForm       = document.getElementById('upload-form');
+const excelFile        = document.getElementById('excel-file');
+const dropzone         = document.getElementById('dropzone');
+const dropzoneLabel    = document.getElementById('dropzone-label');
+const filePreview      = document.getElementById('file-preview');
+const filePreviewName  = document.getElementById('file-preview-name');
+const removeFileBtn    = document.getElementById('remove-file-btn');
+const uploadStatus     = document.getElementById('upload-status');
 
-const configSection  = document.getElementById('config-section');
-const theatreSearch  = document.getElementById('theatre-search');
-const theatreList    = document.getElementById('theatre-list');
-const btnExcel       = document.getElementById('btn-custom-excel');
-const btnZip         = document.getElementById('btn-all-zip');
-const excelBtnText   = document.getElementById('excel-btn-text');
-const zipBtnText     = document.getElementById('zip-btn-text');
+const configSection    = document.getElementById('config-section');
+const thirdPartyToggle = document.getElementById('third-party-toggle');
+const theatreSearch    = document.getElementById('theatre-search');
+const theatreList      = document.getElementById('theatre-list');
+const btnExcel         = document.getElementById('btn-custom-excel');
+const btnZip           = document.getElementById('btn-all-zip');
+const excelBtnText     = document.getElementById('excel-btn-text');
+const zipBtnText       = document.getElementById('zip-btn-text');
 
 // Admin page elements
 const createUserForm   = document.getElementById('create-user-form');
@@ -84,14 +85,12 @@ function showApp() {
     const username = getUsername();
     const isAdmin  = getIsAdmin();
 
-    // Set user info in sidebar & topbar
     const av = initials(username);
     sidebarAvatar.textContent  = av;
     topbarAvatar.textContent   = av;
     sidebarUsername.textContent= username || 'User';
     topbarUsername.textContent = username || 'User';
 
-    // Admin visibility
     if (isAdmin) {
         adminNavItem.classList.remove('hidden');
         adminInfoCard.style.display = '';
@@ -100,7 +99,6 @@ function showApp() {
         adminInfoCard.style.display = 'none';
     }
 
-    // Route to current hash (default: dashboard)
     routeTo(location.hash.replace('#', '') || 'dashboard');
 }
 
@@ -121,31 +119,22 @@ const PAGE_META = {
 function routeTo(page) {
     const meta = PAGE_META[page];
 
-    // Fallback if page doesn't exist or is admin-only for non-admin
     if (!meta || (meta.adminOnly && !getIsAdmin())) {
         page = 'dashboard';
     }
 
-    // Update URL hash without push
     history.replaceState(null, '', `#${page}`);
-
-    // Update page title
     pageTitle.textContent = PAGE_META[page].title;
 
-    // Switch active page
     document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
     const target = document.getElementById(`page-${page}`);
     if (target) target.classList.add('active');
 
-    // Update sidebar active link
     document.querySelectorAll('.nav-item').forEach(a => {
         a.classList.toggle('active', a.dataset.page === page);
     });
 
-    // Side-effects per page
     if (page === 'admin') fetchUsers();
-
-    // Close mobile sidebar
     closeSidebar();
 }
 
@@ -260,9 +249,10 @@ function resetUploader() {
     dropzoneLabel.style.display = '';
     configSection.classList.add('hidden');
     
-    // Reset search
+    // Reset search & toggles
     theatreSearch.value = '';
     theatreSearch.classList.add('hidden');
+    thirdPartyToggle.checked = false;
     
     clearUploadStatus();
 }
@@ -334,14 +324,13 @@ async function extractTheatres(file) {
 function populateTheatreList(theatres) {
     if (!theatres || theatres.length === 0) {
         theatreList.innerHTML = `<p style="color: var(--error-fg); font-size: 0.875rem; padding: 0.5rem;">No theatres found in this file.</p>`;
-        theatreSearch.classList.add('hidden'); // Hide search if empty
+        theatreSearch.classList.add('hidden');
         return;
     }
 
-    theatreSearch.classList.remove('hidden'); // Show search box
-    theatreSearch.value = ''; // Clear previous searches
+    theatreSearch.classList.remove('hidden');
+    theatreSearch.value = ''; 
 
-    // Inject checkboxes with data-name attribute for search filtering
     theatreList.innerHTML = theatres.map(t => `
         <label class="theatre-checkbox" data-name="${escHtml(t).toLowerCase()}">
             <input type="checkbox" value="${escHtml(t)}">
@@ -360,9 +349,9 @@ theatreSearch.addEventListener('input', (e) => {
     labels.forEach(label => {
         const theatreName = label.getAttribute('data-name');
         if (theatreName.includes(query)) {
-            label.style.display = 'flex'; // Show match
+            label.style.display = 'flex'; 
         } else {
-            label.style.display = 'none'; // Hide non-match
+            label.style.display = 'none'; 
         }
     });
 });
@@ -373,7 +362,6 @@ async function triggerDownload(res, defaultFilename) {
     const url  = URL.createObjectURL(blob);
     const link = document.createElement('a');
     
-    // Attempt to extract filename from headers if possible
     let filename = defaultFilename;
     const disposition = res.headers.get('Content-Disposition');
     if (disposition && disposition.indexOf('filename=') !== -1) {
@@ -403,6 +391,7 @@ btnExcel.addEventListener('click', async () => {
     const formData = new FormData();
     formData.append('file', currentFile);
     formData.append('selected_theatres', JSON.stringify(selectedCheckboxes));
+    formData.append('with_third_party', thirdPartyToggle.checked);
 
     setLoadingState(btnExcel, excelBtnText, 'Processing...', true);
     setUploadStatus('info', '⚙️ Generating custom Excel file...');
@@ -435,6 +424,7 @@ btnZip.addEventListener('click', async () => {
     const token = getToken();
     const formData = new FormData();
     formData.append('file', currentFile);
+    formData.append('with_third_party', thirdPartyToggle.checked);
 
     setLoadingState(btnZip, zipBtnText, 'Zipping...', true);
     setUploadStatus('info', '⚙️ Processing all theatres into a ZIP archive...');
@@ -464,7 +454,6 @@ function setLoadingState(btnEl, textEl, loadText, isLoading) {
     btnEl.disabled = isLoading;
     textEl.textContent = loadText;
     
-    // disable the other button to prevent double requests
     if (btnEl === btnExcel) btnZip.disabled = isLoading;
     if (btnEl === btnZip) btnExcel.disabled = isLoading;
 }
@@ -583,7 +572,7 @@ function escHtml(str) {
 // ══════════════════════════════════════
 //  Keep-Alive (prevents Render spin-down)
 // ══════════════════════════════════════
-const PING_INTERVAL = 30_000; // 30 seconds
+const PING_INTERVAL = 30_000; 
 
 function keepAlive() {
     fetch(`${API_URL}/ping`)
@@ -592,9 +581,6 @@ function keepAlive() {
 }
 
 setInterval(keepAlive, PING_INTERVAL);
-keepAlive(); // fire immediately on load too
+keepAlive(); 
 
-// ══════════════════════════════════════
-//  Init
-// ══════════════════════════════════════
 boot();
