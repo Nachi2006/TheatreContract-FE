@@ -41,6 +41,7 @@ const removeFileBtn  = document.getElementById('remove-file-btn');
 const uploadStatus   = document.getElementById('upload-status');
 
 const configSection  = document.getElementById('config-section');
+const theatreSearch  = document.getElementById('theatre-search');
 const theatreList    = document.getElementById('theatre-list');
 const btnExcel       = document.getElementById('btn-custom-excel');
 const btnZip         = document.getElementById('btn-all-zip');
@@ -258,6 +259,11 @@ function resetUploader() {
     filePreview.classList.add('hidden');
     dropzoneLabel.style.display = '';
     configSection.classList.add('hidden');
+    
+    // Reset search
+    theatreSearch.value = '';
+    theatreSearch.classList.add('hidden');
+    
     clearUploadStatus();
 }
 
@@ -328,16 +334,38 @@ async function extractTheatres(file) {
 function populateTheatreList(theatres) {
     if (!theatres || theatres.length === 0) {
         theatreList.innerHTML = `<p style="color: var(--error-fg); font-size: 0.875rem; padding: 0.5rem;">No theatres found in this file.</p>`;
+        theatreSearch.classList.add('hidden'); // Hide search if empty
         return;
     }
 
+    theatreSearch.classList.remove('hidden'); // Show search box
+    theatreSearch.value = ''; // Clear previous searches
+
+    // Inject checkboxes with data-name attribute for search filtering
     theatreList.innerHTML = theatres.map(t => `
-        <label class="theatre-checkbox">
+        <label class="theatre-checkbox" data-name="${escHtml(t).toLowerCase()}">
             <input type="checkbox" value="${escHtml(t)}">
             <span>${escHtml(t)}</span>
         </label>
     `).join('');
 }
+
+// ══════════════════════════════════════
+//  Search Filter Logic
+// ══════════════════════════════════════
+theatreSearch.addEventListener('input', (e) => {
+    const query = e.target.value.toLowerCase();
+    const labels = theatreList.querySelectorAll('.theatre-checkbox');
+    
+    labels.forEach(label => {
+        const theatreName = label.getAttribute('data-name');
+        if (theatreName.includes(query)) {
+            label.style.display = 'flex'; // Show match
+        } else {
+            label.style.display = 'none'; // Hide non-match
+        }
+    });
+});
 
 // Helper to trigger file download from response blob
 async function triggerDownload(res, defaultFilename) {
