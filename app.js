@@ -30,7 +30,7 @@ const menuBtn        = document.getElementById('menu-btn');
 const sidebar        = document.getElementById('sidebar');
 const overlay        = document.getElementById('sidebar-overlay');
 
-// Process page
+// Process page elements
 const uploadForm     = document.getElementById('upload-form');
 const excelFile      = document.getElementById('excel-file');
 const dropzone       = document.getElementById('dropzone');
@@ -40,16 +40,14 @@ const filePreviewName= document.getElementById('file-preview-name');
 const removeFileBtn  = document.getElementById('remove-file-btn');
 const uploadStatus   = document.getElementById('upload-status');
 
-// New Process page elements
 const configSection  = document.getElementById('config-section');
 const theatreList    = document.getElementById('theatre-list');
-const screenColInput = document.getElementById('screen-col-name');
 const btnExcel       = document.getElementById('btn-custom-excel');
 const btnZip         = document.getElementById('btn-all-zip');
 const excelBtnText   = document.getElementById('excel-btn-text');
 const zipBtnText     = document.getElementById('zip-btn-text');
 
-// Admin page
+// Admin page elements
 const createUserForm   = document.getElementById('create-user-form');
 const createUserStatus = document.getElementById('create-user-status');
 const refreshUsersBtn  = document.getElementById('refresh-users-btn');
@@ -377,7 +375,6 @@ btnExcel.addEventListener('click', async () => {
     const formData = new FormData();
     formData.append('file', currentFile);
     formData.append('selected_theatres', JSON.stringify(selectedCheckboxes));
-    formData.append('screen_column_name', screenColInput.value.trim() || 'Screen Name');
 
     setLoadingState(btnExcel, excelBtnText, 'Processing...', true);
     setUploadStatus('info', '⚙️ Generating custom Excel file...');
@@ -410,7 +407,6 @@ btnZip.addEventListener('click', async () => {
     const token = getToken();
     const formData = new FormData();
     formData.append('file', currentFile);
-    formData.append('screen_column_name', screenColInput.value.trim() || 'Screen Name');
 
     setLoadingState(btnZip, zipBtnText, 'Zipping...', true);
     setUploadStatus('info', '⚙️ Processing all theatres into a ZIP archive...');
