@@ -33,6 +33,7 @@ const uploadStatus     = document.getElementById('upload-status');
 
 const configSection    = document.getElementById('config-section');
 const thirdPartyToggle = document.getElementById('third-party-toggle');
+const monthSelect      = document.getElementById('month-select');
 const theatreSearch    = document.getElementById('theatre-search');
 const theatreList      = document.getElementById('theatre-list');
 const btnExcel         = document.getElementById('btn-custom-excel');
@@ -217,6 +218,7 @@ function resetUploader() {
     theatreSearch.value = '';
     theatreSearch.classList.add('hidden');
     thirdPartyToggle.checked = false;
+    monthSelect.innerHTML = '<option value="All">All Months</option>';
     
     clearUploadStatus();
 }
@@ -256,7 +258,7 @@ async function extractTheatres(file) {
     formData.append('file', file);
 
     configSection.classList.remove('hidden');
-    theatreList.innerHTML = `<p style="color: var(--text-muted); font-size: 0.875rem; padding: 0.5rem;">Loading theatres...</p>`;
+    theatreList.innerHTML = `<p style="color: var(--text-muted); font-size: 0.875rem; padding: 0.5rem;">Loading data...</p>`;
     btnExcel.disabled = true;
     btnZip.disabled = true;
 
@@ -270,13 +272,23 @@ async function extractTheatres(file) {
         if (res.ok) {
             const data = await res.json();
             populateTheatreList(data.theatres);
+            populateMonthList(data.months);
             btnExcel.disabled = false;
             btnZip.disabled = false;
         } else {
-            setUploadStatus('error', 'Failed to extract theatres from file.');
+            setUploadStatus('error', 'Failed to extract data from file.');
         }
     } catch {
         setUploadStatus('error', 'Network error. Could not connect to the server.');
+    }
+}
+
+function populateMonthList(months) {
+    monthSelect.innerHTML = '<option value="All">All Months</option>';
+    if (months && months.length > 0) {
+        months.forEach(m => {
+            monthSelect.innerHTML += `<option value="${escHtml(m)}">${escHtml(m)}</option>`;
+        });
     }
 }
 
@@ -346,6 +358,7 @@ btnExcel.addEventListener('click', async () => {
     formData.append('file', currentFile);
     formData.append('selected_theatres', JSON.stringify(selectedCheckboxes));
     formData.append('with_third_party', thirdPartyToggle.checked);
+    formData.append('month', monthSelect.value);
 
     setLoadingState(btnExcel, excelBtnText, 'Processing...', true);
     setUploadStatus('info', '⚙️ Generating custom Excel file...');
@@ -378,6 +391,7 @@ btnZip.addEventListener('click', async () => {
     const formData = new FormData();
     formData.append('file', currentFile);
     formData.append('with_third_party', thirdPartyToggle.checked);
+    formData.append('month', monthSelect.value);
 
     setLoadingState(btnZip, zipBtnText, 'Zipping...', true);
     setUploadStatus('info', '⚙️ Processing all theatres into a ZIP archive...');
